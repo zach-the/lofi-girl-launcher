@@ -1,0 +1,14 @@
+{
+  "fill" : { "solid" : "srgb:0.42000,0.24300,0.65100,1.00000" },
+  "groups" : [
+    {
+      "layers" : [
+        { "glass" : false, "image-name" : "logo.png", "name" : "logo" },
+        { "glass" : false, "image-name" : "bg.png", "name" : "bg" }
+      ],
+      "shadow" : { "kind" : "none", "opacity" : 0 },
+      "translucency" : { "enabled" : false, "value" : 0 }
+    }
+  ],
+  "supported-platforms" : { "squares" : [ "macOS" ] }
+}
