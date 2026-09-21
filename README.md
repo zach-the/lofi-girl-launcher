@@ -4,6 +4,8 @@ A tiny native macOS app that plays the Lofi Girl live stream (lofi hip hop radio
 
 Open the app and the stream starts playing in 1080p.
 
+![LofiGirl window showing the Lofi Girl live stream with the close, play/pause, and 1080p controls](docs/screenshot.png)
+
 ## Features
 
 - Starts streaming the Lofi Girl live stream on launch, no clicks required
