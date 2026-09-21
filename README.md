@@ -12,7 +12,7 @@ Open the app and the stream starts playing in 1080p.
 - Click and drag anywhere in the window to move it
 - Resize from any edge or corner; the window keeps a 16:9 aspect ratio
 - Hover the window to reveal a close button and a play/pause button
-- Forces 1080p playback
+- Forces 1080p playback by default; a button in the hover bar switches between 1080p and Auto (YouTube adaptive quality), and the choice is remembered
 - Automatically skips or mutes pre-roll ads
 - Stays on the Space (desktop) where you leave it
 - Custom macOS 26 icon built with Icon Composer
@@ -61,6 +61,7 @@ To add it to the Dock, launch the app, right-click its Dock icon, and choose Opt
 | Move the window | Click and drag anywhere in the window |
 | Resize | Drag within 16 px of any edge or corner |
 | Play or pause | Hover the window, click the pause/play button at the top left |
+| Switch quality | Hover the window, click the quality label (1080p or Auto) next to the play button |
 | Quit | Hover the window, click the X at the top left |
 
 ## How it works
@@ -71,7 +72,7 @@ YouTube refuses to embed this stream in an iframe (player error 152/153), so the
 
 1. Moves the page's `<video>` element into a fullscreen overlay and hides everything else on the page, so no YouTube interface is visible.
 2. Calls `play()` on the video once it is ready.
-3. Sets the playback quality to 1080p through the player API, and reapplies it periodically because YouTube's adaptive bitrate can lower it.
+3. Sets the playback quality to 1080p through the player API, and reapplies it periodically because YouTube's adaptive bitrate can lower it. In Auto mode it stops forcing and hands control back to YouTube.
 4. Detects ads through the player's `ad-showing` state, mutes them, clicks Skip when available, and seeks to the end of the ad.
 
 The native layer adds the rounded corners (a layer mask on the content view), the hover controls, dragging (`performDrag`), and a custom edge-resize handler, because the video overlay would otherwise block the window's built-in resizing.

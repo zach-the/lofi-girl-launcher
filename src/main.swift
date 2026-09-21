@@ -5,6 +5,7 @@ let videoID = "FZHOHI-L8A"  // Lofi Girl live
 
 let js = """
 (function(){
+  window.lofiHD=__HD__;
   var st=document.createElement('style');
   st.textContent='html,body{background:#000!important;overflow:hidden!important}body>*:not(#lofi-ov){visibility:hidden!important}'+
    '#lofi-ov{position:fixed;inset:0;background:#000;z-index:2147483647}'+
@@ -17,7 +18,7 @@ let js = """
   },300);
   setInterval(function(){
     var p=document.getElementById('movie_player');
-    if(p&&p.setPlaybackQualityRange&&p.getPlaybackQuality&&p.getPlaybackQuality()!=='hd1080'){
+    if(p&&window.lofiHD&&p.setPlaybackQualityRange&&p.getPlaybackQuality&&p.getPlaybackQuality()!=='hd1080'){
       try{p.setPlaybackQualityRange('hd1080','hd1080');p.setPlaybackQuality('hd1080');}catch(e){}
     }
   },2000);
@@ -31,6 +32,11 @@ let js = """
       if(isFinite(v.duration)&&v.duration>0) v.currentTime=v.duration;
     } else if(adMuted){ adMuted=false; v.muted=false; }
   },250);
+  window.lofiSetHD=function(on){
+    window.lofiHD=on;
+    var p=document.getElementById('movie_player'); if(!p||!p.setPlaybackQualityRange) return;
+    try{ if(on){p.setPlaybackQualityRange('hd1080','hd1080');p.setPlaybackQuality('hd1080');} else {p.setPlaybackQualityRange('auto','auto');} }catch(e){}
+  };
   window.lofiToggle=function(){var v=document.querySelector('video'); if(!v)return false; if(v.paused){v.play();}else{v.pause();} return !v.paused;};
 })();
 """
@@ -73,7 +79,9 @@ final class Root: NSView {
     let overlay = DragOverlay()
     let playBtn = NSButton()
     let closeBtn = NSButton()
+    let qualityBtn = NSButton()
     var playing = true
+    var hd = UserDefaults.standard.object(forKey: "hd") as? Bool ?? true
 
     init(web: WKWebView) {
         self.web = web
@@ -96,6 +104,12 @@ final class Root: NSView {
             b.target = self; b.action = sel
             bar.addSubview(b)
         }
+        qualityBtn.isBordered = false
+        qualityBtn.font = .systemFont(ofSize: 11, weight: .semibold)
+        qualityBtn.contentTintColor = .white
+        qualityBtn.target = self; qualityBtn.action = #selector(toggleQuality)
+        updateQualityTitle()
+        bar.addSubview(qualityBtn)
         bar.alphaValue = 0
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
     }
@@ -108,9 +122,17 @@ final class Root: NSView {
         bar.frame = NSRect(x: 0, y: bounds.height - 28, width: bounds.width, height: 28)
         closeBtn.frame = NSRect(x: 6, y: 4, width: 20, height: 20)
         playBtn.frame = NSRect(x: 32, y: 4, width: 20, height: 20)
+        qualityBtn.frame = NSRect(x: 58, y: 4, width: 52, height: 20)
     }
     override func mouseEntered(with e: NSEvent) { NSAnimationContext.runAnimationGroup { $0.duration = 0.15; bar.animator().alphaValue = 1 } }
     override func mouseExited(with e: NSEvent) { NSAnimationContext.runAnimationGroup { $0.duration = 0.3; bar.animator().alphaValue = 0 } }
+    func updateQualityTitle() { qualityBtn.title = hd ? "1080p" : "Auto" }
+    @objc func toggleQuality() {
+        hd.toggle()
+        UserDefaults.standard.set(hd, forKey: "hd")
+        web.evaluateJavaScript("window.lofiSetHD(\(hd))")
+        updateQualityTitle()
+    }
     @objc func quit() { NSApp.terminate(nil) }
     @objc func toggle() {
         playing.toggle()
@@ -127,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let web = WKWebView(frame: .zero, configuration: cfg)
         web.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
         web.setValue(false, forKey: "drawsBackground")
-        cfg.userContentController.addUserScript(WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        cfg.userContentController.addUserScript(WKUserScript(source: js.replacingOccurrences(of: "__HD__", with: (UserDefaults.standard.object(forKey: "hd") as? Bool ?? true) ? "true" : "false"), injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         web.load(URLRequest(url: URL(string: "https://www.youtube.com/watch?v=rFZHOHl-L8A")!))
 
         win = Win(contentRect: NSRect(x: 0, y: 0, width: 480, height: 270),
