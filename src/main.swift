@@ -59,7 +59,7 @@ final class DragOverlay: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
     override func mouseDown(with e: NSEvent) {
         guard let w = window else { return }
-        let p = convert(e.locationInWindow, from: nil), m: CGFloat = 16
+        let p = convert(e.locationInWindow, from: nil), m: CGFloat = 24
         let l = p.x < m, r = p.x > bounds.width - m, b = p.y < m, t = p.y > bounds.height - m
         if !(l || r || b || t) { w.performDrag(with: e); return }
         let sf = w.frame, start = NSEvent.mouseLocation

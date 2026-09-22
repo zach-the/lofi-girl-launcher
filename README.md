@@ -63,7 +63,7 @@ To add it to the Dock, launch the app, right-click its Dock icon, and choose Opt
 | Action | How |
 | --- | --- |
 | Move the window | Click and drag anywhere in the window |
-| Resize | Drag within 16 px of any edge or corner |
+| Resize | Drag within 24 px of any edge or corner |
 | Play or pause | Hover the window, click the pause/play button at the top left |
 | Switch quality | Hover the window, click the quality label (1080p or Auto) next to the play button |
 | Catch up to live | Hover the window, click Live |
