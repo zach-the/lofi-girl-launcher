@@ -38,6 +38,15 @@ let js = """
     try{ if(on){p.setPlaybackQualityRange('hd1080','hd1080');p.setPlaybackQuality('hd1080');} else {p.setPlaybackQualityRange('auto','auto');} }catch(e){}
   };
   window.lofiToggle=function(){var v=document.querySelector('video'); if(!v)return false; if(v.paused){v.play();}else{v.pause();} return !v.paused;};
+  window.lofiIsPlaying=function(){var v=document.querySelector('video'); return v?!v.paused:null;};
+  window.lofiGoLive=function(){
+    var v=document.querySelector('video'); if(!v) return;
+    var badge=document.querySelector('.ytp-live-badge');
+    if(badge){ badge.click(); }
+    else if(isFinite(v.duration)&&v.duration>0){ v.currentTime=v.duration; }
+    v.play().catch(function(){});
+  };
+  window.lofiNudge=function(){var v=document.querySelector('video'); if(v&&v.paused===false){} if(v) v.play().catch(function(){});};
 })();
 """
 
@@ -80,6 +89,7 @@ final class Root: NSView {
     let playBtn = NSButton()
     let closeBtn = NSButton()
     let qualityBtn = NSButton()
+    let liveBtn = NSButton()
     var playing = true
     var hd = UserDefaults.standard.object(forKey: "hd") as? Bool ?? true
 
@@ -104,14 +114,23 @@ final class Root: NSView {
             b.target = self; b.action = sel
             bar.addSubview(b)
         }
-        qualityBtn.isBordered = false
-        qualityBtn.font = .systemFont(ofSize: 11, weight: .semibold)
-        qualityBtn.contentTintColor = .white
+        for b in [qualityBtn, liveBtn] {
+            b.isBordered = false
+            b.font = .systemFont(ofSize: 11, weight: .semibold)
+            b.contentTintColor = .white
+            bar.addSubview(b)
+        }
         qualityBtn.target = self; qualityBtn.action = #selector(toggleQuality)
         updateQualityTitle()
-        bar.addSubview(qualityBtn)
+        liveBtn.title = "Live"
+        liveBtn.target = self; liveBtn.action = #selector(goLive)
         bar.alphaValue = 0
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in self?.syncPlayState() }
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.web.evaluateJavaScript("window.lofiNudge()")
+            self?.syncPlayState()
+        }
     }
     required init?(coder: NSCoder) { fatalError() }
 
@@ -123,6 +142,7 @@ final class Root: NSView {
         closeBtn.frame = NSRect(x: 6, y: 4, width: 20, height: 20)
         playBtn.frame = NSRect(x: 32, y: 4, width: 20, height: 20)
         qualityBtn.frame = NSRect(x: 58, y: 4, width: 52, height: 20)
+        liveBtn.frame = NSRect(x: 112, y: 4, width: 36, height: 20)
     }
     override func mouseEntered(with e: NSEvent) { NSAnimationContext.runAnimationGroup { $0.duration = 0.15; bar.animator().alphaValue = 1 } }
     override func mouseExited(with e: NSEvent) { NSAnimationContext.runAnimationGroup { $0.duration = 0.3; bar.animator().alphaValue = 0 } }
@@ -138,6 +158,21 @@ final class Root: NSView {
         playing.toggle()
         web.evaluateJavaScript("window.lofiToggle()")
         playBtn.image = NSImage(systemSymbolName: playing ? "pause.fill" : "play.fill", accessibilityDescription: nil)
+    }
+    @objc func goLive() {
+        web.evaluateJavaScript("window.lofiGoLive()")
+        playing = true
+        playBtn.image = NSImage(systemSymbolName: "pause.fill", accessibilityDescription: nil)
+    }
+    // The video can pause itself (buffering, sleep/wake, a lost connection) without
+    // going through toggle(), which would leave the button showing the wrong icon.
+    // Poll the real state and reconcile it instead of trusting only our own taps.
+    func syncPlayState() {
+        web.evaluateJavaScript("window.lofiIsPlaying()") { [weak self] r, _ in
+            guard let self, let isPlaying = r as? Bool, isPlaying != self.playing else { return }
+            self.playing = isPlaying
+            self.playBtn.image = NSImage(systemSymbolName: isPlaying ? "pause.fill" : "play.fill", accessibilityDescription: nil)
+        }
     }
 }
 

@@ -13,8 +13,10 @@ Open the app and the stream starts playing in 1080p.
 - Behaves like a normal application window: other windows can cover it and it comes forward when you click it
 - Click and drag anywhere in the window to move it
 - Resize from any edge or corner; the window keeps a 16:9 aspect ratio
-- Hover the window to reveal a close button and a play/pause button
+- Hover the window to reveal a close button, a play/pause button, a quality toggle, and a Live button
 - Forces 1080p playback by default; a button in the hover bar switches between 1080p and Auto (YouTube adaptive quality), and the choice is remembered
+- A Live button snaps the stream back to the live broadcast point, for when you pause for a while and want to catch up
+- The play/pause button stays in sync with actual playback, even if the video pauses itself (buffering, sleep/wake, a dropped connection) rather than being paused from the button
 - Automatically skips or mutes pre-roll ads
 - Stays on the Space (desktop) where you leave it
 - Custom macOS 26 icon built with Icon Composer
@@ -64,6 +66,7 @@ To add it to the Dock, launch the app, right-click its Dock icon, and choose Opt
 | Resize | Drag within 16 px of any edge or corner |
 | Play or pause | Hover the window, click the pause/play button at the top left |
 | Switch quality | Hover the window, click the quality label (1080p or Auto) next to the play button |
+| Catch up to live | Hover the window, click Live |
 | Quit | Hover the window, click the X at the top left |
 
 ## How it works
@@ -77,7 +80,9 @@ YouTube refuses to embed this stream in an iframe (player error 152/153), so the
 3. Sets the playback quality to 1080p through the player API, and reapplies it periodically because YouTube's adaptive bitrate can lower it. In Auto mode it stops forcing and hands control back to YouTube.
 4. Detects ads through the player's `ad-showing` state, mutes them, clicks Skip when available, and seeks to the end of the ad.
 
-The native layer adds the rounded corners (a layer mask on the content view), the hover controls, dragging (`performDrag`), and a custom edge-resize handler, because the video overlay would otherwise block the window's built-in resizing.
+The Live button clicks YouTube's own "skip ahead to live broadcast" control (`.ytp-live-badge`) rather than seeking the video element directly. The `<video>` element's reported `duration` does not track the true live position on this stream, so seeking to it directly does not land at the live edge; the badge is YouTube's own mechanism for this and does the right thing whether or not the stream has actually fallen behind.
+
+The native layer adds the rounded corners (a layer mask on the content view), the hover controls, dragging (`performDrag`), and a custom edge-resize handler, because the video overlay would otherwise block the window's built-in resizing. The play/pause button does not just track its own taps: a timer polls the real `<video>` element once a second and reconciles the icon, and a wake-from-sleep handler nudges playback and resyncs immediately, so the button cannot drift out of sync with what is actually playing.
 
 ## Changing the stream
 
