@@ -12,9 +12,20 @@ let js = """
    '#lofi-ov video{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;transform:none!important;left:0!important;top:0!important}';
   document.documentElement.appendChild(st);
   var ov=document.createElement('div'); ov.id='lofi-ov'; document.documentElement.appendChild(ov);
+  // window.lofiShouldPlay is sticky user intent, not a mirror of reality: it only ever
+  // changes from an explicit user action (lofiToggle, lofiGoLive), never from what the
+  // video happens to be doing. It survives a page reload via localStorage (kept for
+  // this origin across sleep/wake and app relaunches), and it is enforced on every
+  // tick, indefinitely -- not just right after load. A one-shot correction is not
+  // enough: YouTube's own player script can (re)start the stream on its own well after
+  // load (e.g. after a quality change we trigger), and a fixed settling window can
+  // lose that race. Enforcing forever, driven only by explicit intent, is immune to it.
+  window.lofiShouldPlay = localStorage.getItem('lofiShouldPlay') !== '0';
   setInterval(function(){
     var v=document.querySelector('video'); if(!v) return;
-    if(v.parentNode!==ov){ var wasPlaying=!v.paused; ov.appendChild(v); if(wasPlaying||!window.__started){window.__started=true;v.play().catch(function(){});} }
+    if(v.parentNode!==ov){ ov.appendChild(v); }
+    if(window.lofiShouldPlay && v.paused){ v.play().catch(function(){}); }
+    else if(!window.lofiShouldPlay && !v.paused){ v.pause(); }
   },300);
   setInterval(function(){
     var p=document.getElementById('movie_player');
@@ -37,7 +48,13 @@ let js = """
     var p=document.getElementById('movie_player'); if(!p||!p.setPlaybackQualityRange) return;
     try{ if(on){p.setPlaybackQualityRange('hd1080','hd1080');p.setPlaybackQuality('hd1080');} else {p.setPlaybackQualityRange('auto','auto');} }catch(e){}
   };
-  window.lofiToggle=function(){var v=document.querySelector('video'); if(!v)return false; if(v.paused){v.play();}else{v.pause();} return !v.paused;};
+  window.lofiToggle=function(){
+    var v=document.querySelector('video'); if(!v)return false;
+    if(v.paused){v.play();}else{v.pause();}
+    window.lofiShouldPlay = !v.paused;
+    localStorage.setItem('lofiShouldPlay', v.paused ? '0' : '1');
+    return !v.paused;
+  };
   window.lofiIsPlaying=function(){var v=document.querySelector('video'); return v?!v.paused:null;};
   window.lofiGoLive=function(){
     var v=document.querySelector('video'); if(!v) return;
@@ -45,8 +62,10 @@ let js = """
     if(badge){ badge.click(); }
     else if(isFinite(v.duration)&&v.duration>0){ v.currentTime=v.duration; }
     v.play().catch(function(){});
+    window.lofiShouldPlay = true;
+    localStorage.setItem('lofiShouldPlay', '1');
   };
-  window.lofiNudge=function(){var v=document.querySelector('video'); if(v&&v.paused===false){} if(v) v.play().catch(function(){});};
+  window.lofiNudge=function(){var v=document.querySelector('video'); if(v) v.play().catch(function(){});};
 })();
 """
 
@@ -90,7 +109,7 @@ final class Root: NSView {
     let closeBtn = NSButton()
     let qualityBtn = NSButton()
     let liveBtn = NSButton()
-    var playing = true
+    var playing = UserDefaults.standard.object(forKey: "playing") as? Bool ?? true
     var hd = UserDefaults.standard.object(forKey: "hd") as? Bool ?? true
 
     init(web: WKWebView) {
@@ -108,7 +127,7 @@ final class Root: NSView {
         bar.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
         bar.autoresizingMask = [.width, .minYMargin]
         addSubview(bar)
-        for (b, sym, sel) in [(closeBtn, "xmark", #selector(quit)), (playBtn, "pause.fill", #selector(toggle))] {
+        for (b, sym, sel) in [(closeBtn, "xmark", #selector(quit)), (playBtn, playing ? "pause.fill" : "play.fill", #selector(toggle))] {
             b.image = NSImage(systemSymbolName: sym, accessibilityDescription: nil)
             b.isBordered = false; b.contentTintColor = .white
             b.target = self; b.action = sel
@@ -128,8 +147,11 @@ final class Root: NSView {
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in self?.syncPlayState() }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.web.evaluateJavaScript("window.lofiNudge()")
-            self?.syncPlayState()
+            guard let self else { return }
+            // Only nudge playback back on if we were actually supposed to be playing;
+            // otherwise leave a paused stream paused instead of forcing it awake.
+            if self.playing { self.web.evaluateJavaScript("window.lofiNudge()") }
+            self.syncPlayState()
         }
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -156,17 +178,24 @@ final class Root: NSView {
     @objc func quit() { NSApp.terminate(nil) }
     @objc func toggle() {
         playing.toggle()
+        UserDefaults.standard.set(playing, forKey: "playing")
         web.evaluateJavaScript("window.lofiToggle()")
         playBtn.image = NSImage(systemSymbolName: playing ? "pause.fill" : "play.fill", accessibilityDescription: nil)
     }
     @objc func goLive() {
         web.evaluateJavaScript("window.lofiGoLive()")
         playing = true
+        UserDefaults.standard.set(playing, forKey: "playing")
         playBtn.image = NSImage(systemSymbolName: "pause.fill", accessibilityDescription: nil)
     }
     // The video can pause itself (buffering, sleep/wake, a lost connection) without
     // going through toggle(), which would leave the button showing the wrong icon.
     // Poll the real state and reconcile it instead of trusting only our own taps.
+    // This only updates the icon, not persisted intent: what the app enforces after a
+    // reload comes from window.lofiShouldPlay (see js), which is set solely by taps on
+    // this button or the Live button, never by observing what the video happens to be
+    // doing -- otherwise an external pause (buffering, a dropped connection) or an
+    // unwanted autoplay after a reload would get relearned as the user's intent.
     func syncPlayState() {
         web.evaluateJavaScript("window.lofiIsPlaying()") { [weak self] r, _ in
             guard let self, let isPlaying = r as? Bool, isPlaying != self.playing else { return }
