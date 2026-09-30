@@ -18,6 +18,7 @@ Open the app and the stream starts playing in 1080p.
 - A Live button snaps the stream back to the live broadcast point, for when you pause for a while and want to catch up
 - The play/pause button stays in sync with actual playback, even if the video pauses itself (buffering, sleep/wake, a dropped connection) rather than being paused from the button
 - If you pause and close the laptop, it stays paused: opening the lid, or the app reloading the page after being suspended for a while, does not resume playback on its own
+- Keyboard and hardware media keys play/pause the stream correctly, without fighting or getting overridden
 - Automatically skips or mutes pre-roll ads
 - Stays on the Space (desktop) where you leave it
 - Custom macOS 26 icon built with Icon Composer
@@ -86,6 +87,8 @@ The Live button clicks YouTube's own "skip ahead to live broadcast" control (`.y
 The native layer adds the rounded corners (a layer mask on the content view), the hover controls, dragging (`performDrag`), and a custom edge-resize handler, because the video overlay would otherwise block the window's built-in resizing. The play/pause button does not just track its own taps: a timer polls the real `<video>` element once a second and reconciles the icon, and a wake-from-sleep handler nudges playback and resyncs immediately, so the button cannot drift out of sync with what is actually playing. That polling only updates the icon, though; it never feeds back into what the app tries to enforce, because reality and intent are kept separate on purpose (see below).
 
 Whether the stream should be playing is tracked as sticky intent, set only by an explicit tap on play/pause or Live, never inferred from what the video happens to be doing. It is stored in `localStorage` for the YouTube origin, which persists across a page reload and an app relaunch, and it is enforced on every tick, indefinitely. This is what keeps a paused stream paused: after a laptop wakes from sleep, WebKit can reload a page that was suspended for a while, and YouTube's own player script autoplays a freshly loaded page on its own, sometimes well after the page first appears. A single correction at load time loses that race; enforcing intent forever does not.
+
+Keyboard and hardware media keys pause or resume the video directly, through the page's Media Session API, not through the app's own button. Without accounting for that, a media-key pause would look identical to YouTube's unprompted autoplay and get fought and undone by the same enforcement described above. The app installs its own Media Session `play`/`pause` handlers (reclaiming them every tick, since YouTube can reassert its own) so a media key updates intent the same way tapping the button does.
 
 ## Changing the stream
 

@@ -21,9 +21,26 @@ let js = """
   // load (e.g. after a quality change we trigger), and a fixed settling window can
   // lose that race. Enforcing forever, driven only by explicit intent, is immune to it.
   window.lofiShouldPlay = localStorage.getItem('lofiShouldPlay') !== '0';
+  function setIntent(play){
+    window.lofiShouldPlay = play;
+    localStorage.setItem('lofiShouldPlay', play ? '1' : '0');
+  }
+  // Hardware/keyboard media keys route through the page's Media Session API, not
+  // through our own button, so a media-key pause would otherwise look identical to
+  // YouTube's own unprompted autoplay (the thing the enforcement loop above is meant
+  // to override) and get immediately fought and undone. Own these handlers so a media
+  // key updates intent the same way tapping our button does. YouTube can reassert its
+  // own handlers later (e.g. around an ad or a quality change), so reclaim ours on
+  // every tick rather than once.
+  function installMediaKeyHandlers(){
+    if(!navigator.mediaSession) return;
+    navigator.mediaSession.setActionHandler('play', function(){ var v=document.querySelector('video'); if(v) v.play().catch(function(){}); setIntent(true); });
+    navigator.mediaSession.setActionHandler('pause', function(){ var v=document.querySelector('video'); if(v) v.pause(); setIntent(false); });
+  }
   setInterval(function(){
     var v=document.querySelector('video'); if(!v) return;
     if(v.parentNode!==ov){ ov.appendChild(v); }
+    installMediaKeyHandlers();
     if(window.lofiShouldPlay && v.paused){ v.play().catch(function(){}); }
     else if(!window.lofiShouldPlay && !v.paused){ v.pause(); }
   },300);
@@ -51,8 +68,7 @@ let js = """
   window.lofiToggle=function(){
     var v=document.querySelector('video'); if(!v)return false;
     if(v.paused){v.play();}else{v.pause();}
-    window.lofiShouldPlay = !v.paused;
-    localStorage.setItem('lofiShouldPlay', v.paused ? '0' : '1');
+    setIntent(!v.paused);
     return !v.paused;
   };
   window.lofiIsPlaying=function(){var v=document.querySelector('video'); return v?!v.paused:null;};
@@ -62,8 +78,7 @@ let js = """
     if(badge){ badge.click(); }
     else if(isFinite(v.duration)&&v.duration>0){ v.currentTime=v.duration; }
     v.play().catch(function(){});
-    window.lofiShouldPlay = true;
-    localStorage.setItem('lofiShouldPlay', '1');
+    setIntent(true);
   };
   window.lofiNudge=function(){var v=document.querySelector('video'); if(v) v.play().catch(function(){});};
 })();
