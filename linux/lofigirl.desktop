@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=LofiGirl
+Comment=Minimal Lofi Girl YouTube player
+Exec=lofigirl
+Icon=lofigirl
+Terminal=false
+Categories=AudioVideo;Player;
+StartupWMClass=lofigirl

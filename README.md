@@ -2,6 +2,8 @@
 
 A tiny native macOS app that plays the Lofi Girl live stream (lofi hip hop radio, beats to relax/study to) in a frameless, picture-in-picture style window. No browser, no tabs, no live chat, no YouTube interface. Just the video, a close button, and play/pause.
 
+Linux users: see [`linux/`](linux/) for a GTK3 + WebKit2GTK port with the same injected-page behavior (ad skipping, 1080p forcing, the Live button, sticky play/pause intent).
+
 Open the app and the stream starts playing in 1080p.
 
 ![LofiGirl window showing the Lofi Girl live stream with the close, play/pause, and 1080p controls](docs/screenshot.png)
